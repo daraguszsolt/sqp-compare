@@ -4,7 +4,7 @@ A simple browser-based tool to compare Amazon Search Query Performance (SQP) rep
 
 ## What it does
 
-Amazon's Brand Analytics only lets you compare SQP data within a single quarter. If you want to compare longer periods — for example, the first 5 months of 2025 vs the first 5 months of 2026 — you need to manually combine multiple reports.
+Amazon's Brand Analytics only lets you compare SQP data within a single quarter. If you want to compare longer periods -for example, the first 5 months of 2025 vs the first 5 months of 2026 - you need to manually combine multiple reports.
 
 This tool does that for you. Upload your SQP CSV exports, and it:
 

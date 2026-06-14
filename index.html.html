@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQP Compare Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Manrope','Segoe UI',system-ui,sans-serif;background:#0a0a0a;color:#d1d1d1;min-height:100vh;padding:28px 32px}
+
+.periods-row{display:flex;gap:18px;margin-bottom:28px}
+.period-block{flex:1;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);padding:16px 18px}
+.period-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.period-title{font-size:13px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
+.period-dot{width:10px;height:10px;border-radius:3px}
+.period-subtitle{font-size:11px;color:#757575}
+.file-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:4px}
+.file-chip{display:flex;align-items:center;gap:5px;padding:4px 10px 4px 8px;border-radius:7px;font-size:11px;font-weight:600;background:rgba(216,255,122,.08);color:#d8ff7a;border:1px solid rgba(216,255,122,.2)}
+.file-chip .remove-btn{cursor:pointer;opacity:.6;font-size:13px;margin-left:2px;line-height:1}
+.file-chip .remove-btn:hover{opacity:1;color:#ff6b6b}
+.upload-zone{min-height:70px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:all .2s;border:2px dashed rgba(255,255,255,.12);background:rgba(255,255,255,.02)}
+.upload-zone:hover{border-color:rgba(255,192,84,.35);background:rgba(255,192,84,.03)}
+.upload-zone.drag{border-color:#ffc054;background:rgba(255,192,84,.06)}
+.upload-zone.maxed{opacity:.35;pointer-events:none}
+.upload-zone .uz-icon{font-size:20px;opacity:.4}
+.upload-zone .uz-label{font-size:11px;color:#757575}
+.agg-summary{font-size:11px;color:#757575;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
+.agg-summary span{color:#ffc054;font-weight:600}
+
+.compare-bar{display:flex;align-items:center;justify-content:center;margin-bottom:28px;gap:14px}
+.compare-btn{padding:10px 32px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;background:#ffc054;color:#020202;font-family:inherit}
+.compare-btn:hover{background:#ffd480;transform:translateY(-1px)}
+.compare-btn:disabled{opacity:.3;cursor:default;transform:none}
+.compare-hint{font-size:12px;color:#757575}
+
+.stats-row{display:flex;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+.stat-card{background:rgba(255,255,255,.04);border-radius:12px;padding:14px 18px;flex:1;min-width:150px;border-left:3px solid #344d79}
+.stat-card .stat-label{font-size:10px;color:#757575;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.stat-card .stat-value{font-size:22px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace}
+.stat-card .stat-sub{font-size:11px;color:#757575;margin-top:2px}
+
+.filters-bar{background:rgba(255,255,255,.03);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:4px}
+.filter-group .fg-label{font-size:10px;color:#757575;text-transform:uppercase;letter-spacing:.5px}
+.filter-group input,.filter-group select{padding:6px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:#1a1a1a;color:#fff;font-size:12px;outline:none;font-family:inherit}
+.filter-group select option{background:#1a1a1a;color:#d1d1d1}
+.filter-group input[type="number"]{width:75px;font-family:'JetBrains Mono',monospace}
+.filter-group input[type="text"]{width:180px}
+.chip-group{display:flex;gap:4px}
+.chip{padding:5px 13px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s;background:rgba(255,255,255,.07);color:#d1d1d1}
+.chip.active{background:#ffc054;color:#020202}
+.chip:hover:not(.active){background:rgba(255,255,255,.12)}
+
+.results-count{font-size:12px;color:#757575;margin-bottom:10px}
+.results-count span{color:#ffc054;font-weight:700}
+.results-count strong{color:#d1d1d1}
+
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid rgba(255,255,255,.06)}
+table{width:100%;border-collapse:collapse;min-width:1150px}
+thead tr{background:rgba(52,77,121,.15)}
+th{padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#757575;text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.06)}
+th:nth-child(1),th:nth-child(2){text-align:left}
+th:hover{color:#ffc054}
+td{padding:9px 12px;text-align:right;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04);font-family:'JetBrains Mono',monospace;color:#d1d1d1}
+td:nth-child(1),td:nth-child(2){text-align:left;font-family:'Manrope',sans-serif}
+tr:nth-child(even){background:rgba(255,255,255,.015)}
+tr:hover{background:rgba(255,192,84,.04)!important}
+.sep{border-left:2px solid rgba(52,77,121,.2)}
+.kw{color:#fff;font-weight:600}
+.rank-cell{color:#757575;font-size:11px}
+.badge-lost{margin-left:6px;font-size:9px;color:#ff6b6b;background:rgba(255,107,107,.1);padding:1px 5px;border-radius:4px}
+.up{color:#d8ff7a;font-weight:600}
+.down{color:#ff6b6b;font-weight:600}
+.neutral{color:#757575}
+.empty-state{text-align:center;padding:60px 20px;color:#757575}
+.empty-state .big{font-size:44px;margin-bottom:14px;opacity:.3}
+.footer-note{margin-top:14px;font-size:11px;color:#757575}
+.footer-note strong{color:#d1d1d1}
+.hidden{display:none}
+
+/* Top movers chart */
+.movers-container{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:18px 22px;margin-bottom:20px}
+.movers-header{margin-bottom:16px}
+.movers-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:2px}
+.movers-subtitle{font-size:11px;color:#757575}
+.movers-columns{display:flex;gap:24px}
+.movers-col{flex:1}
+.movers-col-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.movers-col-title.gainers{color:#d8ff7a}
+.movers-col-title.losers{color:#ff6b6b}
+.mover-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;padding:6px 8px;border-radius:8px;transition:background .15s}
+.mover-row:hover{background:rgba(255,255,255,.04)}
+.mover-rank{font-size:10px;color:#757575;width:16px;text-align:center;flex-shrink:0}
+.mover-info{flex:1;min-width:0}
+.mover-kw{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mover-sv{font-size:10px;color:#757575;font-family:'JetBrains Mono',monospace}
+.mover-bar-wrap{width:140px;flex-shrink:0;display:flex;align-items:center;gap:8px}
+.mover-bar{height:14px;border-radius:4px;min-width:2px;transition:width .4s ease}
+.mover-bar.gain{background:linear-gradient(90deg,rgba(216,255,122,.15),#d8ff7a)}
+.mover-bar.loss{background:linear-gradient(270deg,rgba(255,107,107,.15),#ff6b6b)}
+.mover-val{font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;white-space:nowrap;width:65px;text-align:right;flex-shrink:0}
+.mover-val.gain{color:#d8ff7a}
+.mover-val.loss{color:#ff6b6b}
+.movers-empty{text-align:center;padding:20px;color:#757575;font-size:12px}
+
+/* Export button */
+.export-btn{padding:7px 18px;border-radius:8px;border:1px solid rgba(255,192,84,.3);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;background:rgba(255,192,84,.08);color:#ffc054;font-family:inherit;display:flex;align-items:center;gap:6px}
+.export-btn:hover{background:rgba(255,192,84,.15);border-color:#ffc054}
+.results-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<div style="margin-bottom:28px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+    <div style="width:8px;height:8px;border-radius:2px;background:#ffc054"></div>
+    <h1 style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">SQP Compare</h1>
+  </div>
+  <p style="font-size:13px;color:#757575;padding-left:18px">Upload multiple Amazon SQP reports per period (up to 4 each) — data is aggregated then compared</p>
+</div>
+
+<div class="periods-row">
+  <div class="period-block" id="block1">
+    <div class="period-header">
+      <div class="period-title"><div class="period-dot" style="background:#344d79"></div> Period 1 — Baseline</div>
+      <div class="period-subtitle">Upload 1–4 CSVs · first file sets top 50</div>
+    </div>
+    <div class="file-chips" id="chips1"></div>
+    <div class="upload-zone" id="zone1" onclick="triggerUpload(1)">
+      <div class="uz-icon">+</div>
+      <div class="uz-label">Drop CSV files or click to add</div>
+    </div>
+    <input type="file" id="fileInput1" accept=".csv" multiple style="display:none" onchange="handleFiles(1,this)">
+    <div class="agg-summary hidden" id="agg1"></div>
+  </div>
+  <div class="period-block" id="block2">
+    <div class="period-header">
+      <div class="period-title"><div class="period-dot" style="background:#ffc054"></div> Period 2 — Compare</div>
+      <div class="period-subtitle">Upload 1–4 CSVs</div>
+    </div>
+    <div class="file-chips" id="chips2"></div>
+    <div class="upload-zone" id="zone2" onclick="triggerUpload(2)">
+      <div class="uz-icon">+</div>
+      <div class="uz-label">Drop CSV files or click to add</div>
+    </div>
+    <input type="file" id="fileInput2" accept=".csv" multiple style="display:none" onchange="handleFiles(2,this)">
+    <div class="agg-summary hidden" id="agg2"></div>
+  </div>
+</div>
+
+<div class="compare-bar">
+  <button class="compare-btn" id="compareBtn" disabled onclick="buildDashboard()">Compare Periods</button>
+  <div class="compare-hint" id="compareHint">Add at least one file to each period</div>
+</div>
+
+<div id="dashboard" class="hidden">
+  <div class="stats-row" id="statsRow"></div>
+
+  <!-- Top 10 movers -->
+  <div class="movers-container" id="moversContainer">
+    <div class="movers-header">
+      <div class="movers-title">Top 10 Movers — Click Share</div>
+      <div class="movers-subtitle">5 biggest gainers and 5 biggest losers by absolute CS change (pp)</div>
+    </div>
+    <div class="movers-columns" id="moversColumns"></div>
+  </div>
+
+  <div class="filters-bar">
+    <div class="filter-group" style="flex:1 1 180px">
+      <div class="fg-label">Search</div>
+      <input type="text" id="filterSearch" placeholder="Filter keywords…" oninput="renderTable()">
+    </div>
+    <div class="filter-group">
+      <div class="fg-label">Metric Focus</div>
+      <div class="chip-group" id="metricChips"></div>
+    </div>
+    <div class="filter-group">
+      <div class="fg-label">Direction</div>
+      <div class="chip-group" id="directionChips"></div>
+    </div>
+    <div class="filter-group">
+      <div class="fg-label">Min SV</div>
+      <input type="number" id="filterMinSV" placeholder="0" value="" oninput="renderTable()">
+    </div>
+    <div class="filter-group">
+      <div class="fg-label">Min Change</div>
+      <input type="number" id="filterMinChange" placeholder="0" value="" oninput="renderTable()">
+    </div>
+    <div class="filter-group">
+      <div class="fg-label">Sort By</div>
+      <div style="display:flex;gap:4px;align-items:center">
+        <select id="sortSelect" onchange="renderTable()">
+          <option value="score">SQP Score</option>
+          <option value="sv1">SV (Period 1)</option>
+          <option value="svChg">SV Change %</option>
+          <option value="isChg">IS Change</option>
+          <option value="csChg">CS Change</option>
+          <option value="clicksChg">Clicks Change %</option>
+          <option value="purchChg">Purchases Change %</option>
+        </select>
+        <button class="chip active" id="sortDirBtn" onclick="toggleSortDir()" style="padding:5px 10px;font-size:13px;min-width:36px" title="Toggle ascending / descending">▲</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-bar">
+    <div class="results-count" id="resultsCount"></div>
+    <button class="export-btn" onclick="exportToExcel()">📥 Export to Excel</button>
+  </div>
+  <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  <div class="footer-note">Top 50 keywords selected by SQP Score from the <strong>first uploaded file</strong>. SV, Clicks, Purchases are <strong>summed</strong> across reports. IS = Brand Impressions ÷ Total Impressions. CS = Brand Clicks ÷ Total Clicks. Changes: SV/Clicks/Purchases as %, IS/CS in percentage points (pp). <span class="up">▲</span> = improvement · <span class="down">▼</span> = decline.</div>
+</div>
+
+<div id="emptyState" class="empty-state">
+  <div class="big">📊</div>
+  <div>Add SQP reports to both periods, then hit Compare</div>
+</div>
+
+<script>
+const MAX_FILES = 4;
+const periodFiles = { 1: [], 2: [] };
+const periodLabels = { 1: [], 2: [] };
+let compared = [];
+let metric = "sv", direction = "All", sortKey = "score", sortDir = "asc";
+
+function parseMeta(line) {
+  const range = (line.match(/Reporting Range=\["([^"]+)"\]/) || [])[1] || "";
+  const year = (line.match(/Select year=\["([^"]+)"\]/) || [])[1] || "";
+  if (range === "Monthly") { const m = (line.match(/Select month=\["([^"]+)"\]/) || [])[1] || ""; return { label: m, year }; }
+  if (range === "Weekly") { const w = (line.match(/Select week=\["([^"]+)"\]/) || [])[1] || ""; return { label: w, year }; }
+  return { label: range || "Unknown", year };
+}
+
+function parseSQP(text) {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const meta = parseMeta(lines[0]);
+  const rest = lines.slice(1).join("\n");
+  const { data } = Papa.parse(rest, { header: true, skipEmptyLines: true });
+  const headers = Object.keys(data[0] || {});
+  const shareType = headers.some(h => h.includes("ASIN Share")) ? "ASIN" : "Brand";
+  const isCol = headers.find(h => h.startsWith("Impressions:") && h.includes(shareType + " Share"));
+  const csCol = headers.find(h => h.startsWith("Clicks:") && h.includes(shareType + " Share"));
+  const rows = data.map(r => {
+    const clicks = parseInt(String(r["Clicks: Total Count"]).replace(/,/g, ""), 10) || 0;
+    const impressions = parseInt(String(r["Impressions: Total Count"]).replace(/,/g, ""), 10) || 0;
+    const csPct = parseFloat(r[csCol]) || 0;
+    const isPct = parseFloat(r[isCol]) || 0;
+    return {
+      query: (r["Search Query"] || "").trim(),
+      score: parseFloat(r["Search Query Score"]) || 0,
+      sv: parseInt(String(r["Search Query Volume"]).replace(/,/g, ""), 10) || 0,
+      impressions: impressions,
+      brandImpressions: impressions * isPct / 100,
+      clicks: clicks,
+      brandClicks: clicks * csPct / 100,
+      is: isPct,
+      cs: csPct,
+      purchases: parseInt(String(r["Purchases: Total Count"]).replace(/,/g, ""), 10) || 0,
+    };
+  });
+  return { meta, rows };
+}
+
+function aggregatePeriod(files) {
+  if (!files.length) return null;
+  const kwMap = new Map();
+  for (const file of files) {
+    for (const r of file.rows) {
+      const key = r.query.toLowerCase();
+      if (!kwMap.has(key)) kwMap.set(key, { query: r.query, sv: 0, impressions: 0, brandImpressions: 0, clicks: 0, brandClicks: 0, purchases: 0, scoreSum: 0, count: 0 });
+      const a = kwMap.get(key);
+      a.sv += r.sv;
+      a.impressions += r.impressions;
+      a.brandImpressions += r.brandImpressions;
+      a.clicks += r.clicks;
+      a.brandClicks += r.brandClicks;
+      a.purchases += r.purchases;
+      a.scoreSum += r.score; a.count += 1;
+    }
+  }
+  const rows = [];
+  for (const a of kwMap.values()) {
+    rows.push({
+      query: a.query,
+      score: a.scoreSum / a.count,
+      sv: a.sv,
+      is: a.impressions > 0 ? (a.brandImpressions / a.impressions) * 100 : 0,
+      cs: a.clicks > 0 ? (a.brandClicks / a.clicks) * 100 : 0,
+      clicks: a.clicks,
+      purchases: a.purchases,
+    });
+  }
+  return rows;
+}
+
+function periodLabelString(n) {
+  const l = periodLabels[n];
+  if (!l.length) return "Period " + n;
+  if (l.length === 1) return l[0];
+  return l[0] + " – " + l[l.length - 1];
+}
+
+function pct(a, b) { return b ? ((a - b) / b) * 100 : (a ? 999 : 0); }
+function fmt(n) { return n != null ? n.toLocaleString("en-US") : "–"; }
+function fmtPct(n) { return n != null ? n.toFixed(2) + "%" : "–"; }
+function changeHTML(val, suffix) {
+  if (val == null) return '<span class="neutral">–</span>';
+  const cls = val > 0 ? "up" : val < 0 ? "down" : "neutral";
+  const arrow = val > 0 ? "▲ " : val < 0 ? "▼ " : "";
+  let display;
+  if (suffix === "%") display = (val > 0 ? "+" : "") + val.toFixed(1) + "%";
+  else display = (val > 0 ? "+" : "") + val.toFixed(2) + "pp";
+  return `<span class="${cls}">${arrow}${display}</span>`;
+}
+
+function triggerUpload(n) { if (periodFiles[n].length < MAX_FILES) document.getElementById("fileInput" + n).click(); }
+
+function handleFiles(n, input) {
+  const files = Array.from(input.files);
+  for (const file of files) {
+    if (periodFiles[n].length >= MAX_FILES) break;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const parsed = parseSQP(e.target.result);
+      periodFiles[n].push(parsed);
+      const lbl = parsed.meta.year ? parsed.meta.label + " " + parsed.meta.year : parsed.meta.label;
+      periodLabels[n].push(lbl);
+      refreshPeriodUI(n);
+      updateCompareButton();
+    };
+    reader.readAsText(file);
+  }
+  input.value = "";
+}
+
+function removeFile(n, idx) {
+  periodFiles[n].splice(idx, 1);
+  periodLabels[n].splice(idx, 1);
+  refreshPeriodUI(n);
+  updateCompareButton();
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("emptyState").classList.remove("hidden");
+}
+
+function refreshPeriodUI(n) {
+  document.getElementById("chips" + n).innerHTML = periodLabels[n].map((lbl, i) =>
+    `<div class="file-chip">${lbl}<span class="remove-btn" onclick="event.stopPropagation();removeFile(${n},${i})">✕</span></div>`
+  ).join("");
+  const zone = document.getElementById("zone" + n);
+  const remaining = MAX_FILES - periodFiles[n].length;
+  if (remaining <= 0) {
+    zone.classList.add("maxed");
+    zone.querySelector(".uz-label").textContent = "Maximum 4 files reached";
+  } else {
+    zone.classList.remove("maxed");
+    zone.querySelector(".uz-label").textContent = `Drop CSV files or click to add (${remaining} remaining)`;
+  }
+  const aggEl = document.getElementById("agg" + n);
+  if (periodFiles[n].length > 1) {
+    const agg = aggregatePeriod(periodFiles[n]);
+    aggEl.innerHTML = `<span>${periodFiles[n].length}</span> reports → <span>${(agg ? agg.length : 0).toLocaleString()}</span> unique keywords aggregated`;
+    aggEl.classList.remove("hidden");
+  } else if (periodFiles[n].length === 1) {
+    aggEl.innerHTML = `<span>${periodFiles[n][0].rows.length.toLocaleString()}</span> keywords loaded`;
+    aggEl.classList.remove("hidden");
+  } else {
+    aggEl.classList.add("hidden");
+  }
+}
+
+function updateCompareButton() {
+  const ok = periodFiles[1].length >= 1 && periodFiles[2].length >= 1;
+  document.getElementById("compareBtn").disabled = !ok;
+  document.getElementById("compareHint").textContent = ok
+    ? `${periodFiles[1].length} file(s) vs ${periodFiles[2].length} file(s) — ready`
+    : "Add at least one file to each period";
+}
+
+[1, 2].forEach(n => {
+  const zone = document.getElementById("zone" + n);
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("drag"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("drag"));
+  zone.addEventListener("drop", e => {
+    e.preventDefault(); zone.classList.remove("drag");
+    Array.from(e.dataTransfer.files).filter(f => f.name.endsWith(".csv")).forEach(file => {
+      if (periodFiles[n].length >= MAX_FILES) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const parsed = parseSQP(ev.target.result);
+        periodFiles[n].push(parsed);
+        const lbl = parsed.meta.year ? parsed.meta.label + " " + parsed.meta.year : parsed.meta.label;
+        periodLabels[n].push(lbl);
+        refreshPeriodUI(n);
+        updateCompareButton();
+      };
+      reader.readAsText(file);
+    });
+  });
+});
+
+function buildDashboard() {
+  const agg1 = aggregatePeriod(periodFiles[1]);
+  const agg2 = aggregatePeriod(periodFiles[2]);
+  if (!agg1 || !agg2) return;
+
+  // Top 50 keywords by SQP Score from the FIRST uploaded file (not aggregated)
+  const firstFileRows = periodFiles[1][0].rows;
+  const top50kw = [...firstFileRows].sort((a, b) => a.score - b.score).slice(0, 50).map(r => r.query.toLowerCase());
+  const agg1Map = new Map(agg1.map(r => [r.query.toLowerCase(), r]));
+  const p2Map = new Map(agg2.map(r => [r.query.toLowerCase(), r]));
+
+  compared = top50kw.map(kwLower => {
+    const r1 = agg1Map.get(kwLower);
+    if (!r1) return null;
+    const r2 = p2Map.get(kwLower);
+    const firstFileRow = firstFileRows.find(r => r.query.toLowerCase() === kwLower);
+    return {
+      query: r1.query, score: firstFileRow ? firstFileRow.score : Math.round(r1.score * 10) / 10,
+      sv1: r1.sv, sv2: r2 ? r2.sv : null, svChg: r2 ? pct(r2.sv, r1.sv) : null,
+      is1: r1.is, is2: r2 ? r2.is : null, isChg: r2 ? r2.is - r1.is : null,
+      cs1: r1.cs, cs2: r2 ? r2.cs : null, csChg: r2 ? r2.cs - r1.cs : null,
+      clicks1: r1.clicks, clicks2: r2 ? r2.clicks : null, clicksChg: r2 ? pct(r2.clicks, r1.clicks) : null,
+      purch1: r1.purchases, purch2: r2 ? r2.purchases : null, purchChg: r2 ? pct(r2.purchases, r1.purchases) : null,
+      missing: !r2,
+    };
+  }).filter(r => r != null);
+
+  document.getElementById("emptyState").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+  buildChips(); renderStats(); renderMovers(); renderTable();
+}
+
+function buildChips() {
+  document.getElementById("metricChips").innerHTML = [["sv","SV"],["is","IS"],["cs","CS"]].map(([k,l]) =>
+    `<button class="chip ${metric===k?"active":""}" onclick="setMetric('${k}')">${l}</button>`).join("");
+  document.getElementById("directionChips").innerHTML = ["All","Improved","Declined","New / Lost"].map(d =>
+    `<button class="chip ${direction===d?"active":""}" onclick="setDirection('${d}')">${d}</button>`).join("");
+}
+function setMetric(m) { metric = m; buildChips(); renderTable(); }
+function setDirection(d) { direction = d; buildChips(); renderTable(); }
+
+function toggleSortDir() {
+  sortDir = sortDir === "asc" ? "desc" : "asc";
+  updateSortDirBtn();
+  renderTable();
+}
+function updateSortDirBtn() {
+  const btn = document.getElementById("sortDirBtn");
+  if (btn) { btn.textContent = sortDir === "asc" ? "▲" : "▼"; btn.title = sortDir === "asc" ? "Ascending (click to flip)" : "Descending (click to flip)"; }
+}
+
+function renderStats() {
+  const valid = compared.filter(r => !r.missing);
+  const avg = (arr, key) => arr.reduce((s, r) => s + (r[key] || 0), 0) / (arr.length || 1);
+  const avgSV = avg(valid, "svChg"), avgIS = avg(valid, "isChg"), avgCS = avg(valid, "csChg");
+  const improved = valid.filter(r => (r.csChg || 0) > 0).length;
+  const declined = valid.filter(r => (r.csChg || 0) < 0).length;
+  const lost = compared.filter(r => r.missing).length;
+
+  document.getElementById("statsRow").innerHTML = `
+    <div class="stat-card"><div class="stat-label">Keywords Tracked</div><div class="stat-value">${compared.length}</div><div class="stat-sub">${lost} not found in P2</div></div>
+    <div class="stat-card" style="border-color:${avgSV>=0?"#d8ff7a":"#ff6b6b"}"><div class="stat-label">Avg SV Change</div><div class="stat-value">${(avgSV>=0?"+":"")+avgSV.toFixed(1)}%</div></div>
+    <div class="stat-card" style="border-color:${avgIS>=0?"#d8ff7a":"#ff6b6b"}"><div class="stat-label">Avg IS Change</div><div class="stat-value">${(avgIS>=0?"+":"")+avgIS.toFixed(2)}pp</div></div>
+    <div class="stat-card" style="border-color:${avgCS>=0?"#d8ff7a":"#ff6b6b"}"><div class="stat-label">Avg CS Change</div><div class="stat-value">${(avgCS>=0?"+":"")+avgCS.toFixed(2)}pp</div></div>
+    <div class="stat-card" style="border-color:#d8ff7a"><div class="stat-label">CS Improved</div><div class="stat-value">${improved}</div><div class="stat-sub">${declined} declined</div></div>
+  `;
+}
+
+function renderMovers() {
+  const valid = compared.filter(r => !r.missing && r.csChg != null);
+  if (!valid.length) {
+    document.getElementById("moversColumns").innerHTML = '<div class="movers-empty">No data available</div>';
+    return;
+  }
+
+  // Sort by CS change for gainers (desc) and losers (asc)
+  const sorted = [...valid].sort((a, b) => b.csChg - a.csChg);
+  const gainers = sorted.filter(r => r.csChg > 0).slice(0, 5);
+  const losers = sorted.filter(r => r.csChg < 0).reverse().slice(0, 5);
+
+  // Find max absolute change for bar scaling
+  const allMovers = [...gainers, ...losers];
+  const maxAbs = Math.max(...allMovers.map(r => Math.abs(r.csChg)), 0.1);
+
+  function moverRow(r, i, type) {
+    const absChg = Math.abs(r.csChg);
+    const barWidth = Math.round((absChg / maxAbs) * 100);
+    const sign = type === "gain" ? "+" : "";
+    return `<div class="mover-row">
+      <div class="mover-rank">${i + 1}</div>
+      <div class="mover-info">
+        <div class="mover-kw" title="${r.query}">${r.query}</div>
+        <div class="mover-sv">SV: ${fmt(r.sv1)}</div>
+      </div>
+      <div class="mover-bar-wrap">
+        <div class="mover-bar ${type}" style="width:${barWidth}%"></div>
+      </div>
+      <div class="mover-val ${type}">${sign}${r.csChg.toFixed(2)}pp</div>
+    </div>`;
+  }
+
+  const gainersHTML = gainers.length
+    ? gainers.map((r, i) => moverRow(r, i, "gain")).join("")
+    : '<div class="movers-empty">No gainers in this set</div>';
+
+  const losersHTML = losers.length
+    ? losers.map((r, i) => moverRow(r, i, "loss")).join("")
+    : '<div class="movers-empty">No losers in this set</div>';
+
+  document.getElementById("moversColumns").innerHTML = `
+    <div class="movers-col">
+      <div class="movers-col-title gainers">▲ Biggest Gainers</div>
+      ${gainersHTML}
+    </div>
+    <div class="movers-col">
+      <div class="movers-col-title losers">▼ Biggest Losers</div>
+      ${losersHTML}
+    </div>
+  `;
+}
+
+function renderTable() {
+  const search = (document.getElementById("filterSearch").value || "").toLowerCase();
+  const minSV = parseInt(document.getElementById("filterMinSV").value) || 0;
+  const minChg = parseFloat(document.getElementById("filterMinChange").value) || 0;
+  const newSortKey = document.getElementById("sortSelect").value;
+  if (newSortKey !== sortKey) {
+    sortKey = newSortKey;
+    sortDir = sortKey === "score" ? "asc" : "desc";
+    updateSortDirBtn();
+  }
+
+  let data = [...compared];
+  if (search) data = data.filter(r => r.query.toLowerCase().includes(search));
+  if (minSV > 0) data = data.filter(r => r.sv1 >= minSV);
+
+  if (direction === "Improved") {
+    data = data.filter(r => { const k = metric==="sv"?"svChg":metric==="is"?"isChg":"csChg"; return (r[k]||0)>0; });
+  } else if (direction === "Declined") {
+    data = data.filter(r => { const k = metric==="sv"?"svChg":metric==="is"?"isChg":"csChg"; return (r[k]||0)<0; });
+  } else if (direction === "New / Lost") {
+    data = data.filter(r => r.missing);
+  }
+
+  if (minChg > 0) {
+    data = data.filter(r => { const k = metric==="sv"?"svChg":metric==="is"?"isChg":"csChg"; return Math.abs(r[k]||0) >= minChg; });
+  }
+
+  data.sort((a, b) => { const av = a[sortKey] ?? -Infinity, bv = b[sortKey] ?? -Infinity; return sortDir === "desc" ? bv - av : av - bv; });
+
+  const l1 = periodLabelString(1), l2 = periodLabelString(2);
+
+  document.getElementById("thead").innerHTML = `<tr>
+    <th style="text-align:left;min-width:36px">#</th>
+    <th style="text-align:left;min-width:200px">Keyword</th>
+    <th>Score (File 1)</th>
+    <th class="sep">SV P1</th><th>SV P2</th><th>SV Δ%</th>
+    <th class="sep">IS P1</th><th>IS P2</th><th>IS Δ</th>
+    <th class="sep">CS P1</th><th>CS P2</th><th>CS Δ</th>
+    <th class="sep">Clicks Δ%</th><th>Purch Δ%</th>
+  </tr>`;
+
+  if (!data.length) {
+    document.getElementById("tbody").innerHTML = `<tr><td colspan="14" style="text-align:center;color:#757575;padding:30px">No keywords match your filters</td></tr>`;
+  } else {
+    document.getElementById("tbody").innerHTML = data.map((r, i) => `<tr>
+      <td class="rank-cell">${i+1}</td>
+      <td class="kw">${r.query}${r.missing?'<span class="badge-lost">NOT FOUND</span>':''}</td>
+      <td>${r.score}</td>
+      <td class="sep">${fmt(r.sv1)}</td><td>${r.sv2!=null?fmt(r.sv2):"–"}</td><td>${changeHTML(r.svChg,"%")}</td>
+      <td class="sep">${fmtPct(r.is1)}</td><td>${r.is2!=null?fmtPct(r.is2):"–"}</td><td>${changeHTML(r.isChg,"pp")}</td>
+      <td class="sep">${fmtPct(r.cs1)}</td><td>${r.cs2!=null?fmtPct(r.cs2):"–"}</td><td>${changeHTML(r.csChg,"pp")}</td>
+      <td class="sep">${changeHTML(r.clicksChg,"%")}</td><td>${changeHTML(r.purchChg,"%")}</td>
+    </tr>`).join("");
+  }
+
+  document.getElementById("resultsCount").innerHTML = `Showing <span>${data.length}</span> of ${compared.length} keywords &nbsp;·&nbsp; P1: <strong>${l1}</strong> (${periodFiles[1].length} report${periodFiles[1].length>1?"s":""}) &nbsp;vs&nbsp; P2: <strong>${l2}</strong> (${periodFiles[2].length} report${periodFiles[2].length>1?"s":""})`;
+}
+
+// ── Export to Excel ──────────────────────────────────────
+function exportToExcel() {
+  if (!compared.length) return;
+
+  const l1 = periodLabelString(1), l2 = periodLabelString(2);
+  const today = new Date();
+  const dateStr = today.getFullYear() + '/' + String(today.getMonth()+1).padStart(2,'0') + '/' + String(today.getDate()).padStart(2,'0');
+
+  // Build header row
+  const headers = [
+    "Rank", "Keyword", "SQP Score (File 1)",
+    "SV " + l1, "SV " + l2, "SV Δ%",
+    "IS " + l1, "IS " + l2, "IS Δ (pp)",
+    "CS " + l1, "CS " + l2, "CS Δ (pp)",
+    "Clicks " + l1, "Clicks " + l2, "Clicks Δ%",
+    "Purchases " + l1, "Purchases " + l2, "Purchases Δ%",
+    "Status"
+  ];
+
+  // Build data rows (full compared set, sorted by score ascending)
+  const sorted = [...compared].sort((a, b) => a.score - b.score);
+  const rows = sorted.map((r, i) => [
+    i + 1,
+    r.query,
+    r.score,
+    r.sv1,
+    r.sv2 != null ? r.sv2 : "",
+    r.svChg != null ? Math.round(r.svChg * 10) / 10 : "",
+    r.is1 != null ? Math.round(r.is1 * 100) / 100 : "",
+    r.is2 != null ? Math.round(r.is2 * 100) / 100 : "",
+    r.isChg != null ? Math.round(r.isChg * 100) / 100 : "",
+    r.cs1 != null ? Math.round(r.cs1 * 100) / 100 : "",
+    r.cs2 != null ? Math.round(r.cs2 * 100) / 100 : "",
+    r.csChg != null ? Math.round(r.csChg * 100) / 100 : "",
+    r.clicks1,
+    r.clicks2 != null ? r.clicks2 : "",
+    r.clicksChg != null ? Math.round(r.clicksChg * 10) / 10 : "",
+    r.purch1,
+    r.purch2 != null ? r.purch2 : "",
+    r.purchChg != null ? Math.round(r.purchChg * 10) / 10 : "",
+    r.missing ? "NOT FOUND" : ""
+  ]);
+
+  const wsData = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 5 },  // Rank
+    { wch: 35 }, // Keyword
+    { wch: 14 }, // Score
+    { wch: 12 }, { wch: 12 }, { wch: 10 }, // SV
+    { wch: 10 }, { wch: 10 }, { wch: 10 }, // IS
+    { wch: 10 }, { wch: 10 }, { wch: 10 }, // CS
+    { wch: 12 }, { wch: 12 }, { wch: 11 }, // Clicks
+    { wch: 13 }, { wch: 13 }, { wch: 12 }, // Purchases
+    { wch: 12 }, // Status
+  ];
+
+  // Build summary sheet
+  const valid = compared.filter(r => !r.missing);
+  const avg = (arr, key) => arr.reduce((s, r) => s + (r[key] || 0), 0) / (arr.length || 1);
+  const summaryData = [
+    ["SQP Compare Export"],
+    ["Generated", dateStr],
+    [],
+    ["Period 1", l1, periodFiles[1].length + " report(s)"],
+    ["Period 2", l2, periodFiles[2].length + " report(s)"],
+    [],
+    ["Metric", "Value"],
+    ["Keywords Tracked", compared.length],
+    ["Keywords Found in P2", valid.length],
+    ["Keywords Not Found", compared.filter(r => r.missing).length],
+    [],
+    ["Avg SV Change %", Math.round(avg(valid, "svChg") * 10) / 10],
+    ["Avg IS Change (pp)", Math.round(avg(valid, "isChg") * 100) / 100],
+    ["Avg CS Change (pp)", Math.round(avg(valid, "csChg") * 100) / 100],
+    [],
+    ["CS Improved", valid.filter(r => (r.csChg || 0) > 0).length],
+    ["CS Declined", valid.filter(r => (r.csChg || 0) < 0).length],
+    ["CS Unchanged", valid.filter(r => (r.csChg || 0) === 0).length],
+    [],
+    ["Top 5 CS Gainers"],
+    ["Keyword", "CS Δ (pp)", "SV"],
+  ];
+  const gainers = [...valid].sort((a, b) => b.csChg - a.csChg).filter(r => r.csChg > 0).slice(0, 5);
+  gainers.forEach(r => summaryData.push([r.query, Math.round(r.csChg * 100) / 100, r.sv1]));
+  summaryData.push([], ["Top 5 CS Losers"], ["Keyword", "CS Δ (pp)", "SV"]);
+  const losers = [...valid].sort((a, b) => a.csChg - b.csChg).filter(r => r.csChg < 0).slice(0, 5);
+  losers.forEach(r => summaryData.push([r.query, Math.round(r.csChg * 100) / 100, r.sv1]));
+
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+  wsSummary['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 14 }];
+
+  // Create workbook
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+  XLSX.utils.book_append_sheet(wb, ws, "Comparison");
+
+  // Download
+  const fileName = `SQP_Compare_${l1.replace(/[^a-zA-Z0-9]/g, '_')}_vs_${l2.replace(/[^a-zA-Z0-9]/g, '_')}_${dateStr.replace(/\//g, '')}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+</script>
+</body>
+</html>

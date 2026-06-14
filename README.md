@@ -32,7 +32,7 @@ No installation. No data leaves your browser.
 
 ## Feedback
 
-Found a bug or have an idea? Open an issue or reach out to me on [LinkedIn](https://www.linkedin.com/in/daraguszsolt/).
+Found a bug or have an idea? Open an issue or reach out to me on [LinkedIn](https://www.linkedin.com/in/zsoltdaragus/).
 
 ## License
 
